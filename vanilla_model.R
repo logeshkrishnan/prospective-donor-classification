@@ -297,3 +297,25 @@ auc <- unlist(slot(auc, "y.values"))
 # f1 = 0.8464809
 # still normalization, outlier, correlation and balancing needed
 
+# trying logistic regression vanilla model
+logitMod <- glm(TARGET_B ~ ., data = newtrain, family=binomial(link="logit"))
+print(logitMod)
+
+# pred using random forest
+prf <- predict(logitMod, newtest, type = "response")  
+prf <- as.data.frame(prf)
+
+# metrics
+cm <- confusionMatrix(prf, newtest$TARGET_B)
+rc <- recall(cm$table)
+pr <- precision(cm$table)
+f1 <- (2* rc * pr/(rc + pr))
+
+# roc curve evaluation
+pred <- prediction(prf$`0`, newtest$TARGET_B)
+eval <- performance(pred, "acc")
+plot(eval)
+
+roc <- performance(pred, "tpr", "fpr")
+plot(roc)
+
