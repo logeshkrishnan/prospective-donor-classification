@@ -3,6 +3,7 @@ library(dplyr)
 library(corrplot)
 library(caret)
 library(randomForest)
+library(ROSE) # to deal with imbalance
 
 # correlation between continous variables
 num_col <- trsf[sapply(trsf, is.numeric)]
@@ -30,6 +31,24 @@ summary(arhcas)
 # combining 
 arhcas <- cbind(stan_col, cat_col)
 
+# dealing with the imabalance using ROSE
+bal_data <- ROSE(TARGET_B~., data = arhcas, seed = 1)$data
+table(bal_data$TARGET_B)
+
+# Checking for outliers using cooks distance 
+cooksd <- cooks.distance(glm(TARGET_B ~ ., 
+                             family = "binomial", 
+                             data = bal_data))
+plot(cooksd, 
+     pch="*", 
+     cex=2, 
+     main="Influential Obs by Cooks distance")  
+abline(h = 4*mean(cooksd, na.rm=T), col="red")
+
+outliers <- rownames(bal_data[cooksd > 4*mean(cooksd, na.rm=T), ])
+print(outliers)
+rownames(arhcas)
+
 # seperating train and test from train
 set.seed(123)
 ind <- sample(2, nrow(arhcas), prob = c(0.75, 0.25), replace = T)
@@ -43,8 +62,15 @@ rf <- randomForest(TARGET_B~., data = newtrain)
 print(rf)
 
 # pred using random forest
-prf <- predict(rf, newtest, type = "prob")  
-prf <- as.data.frame(prf)
+prf <- predict(rf, newtest[-19])  
+
+# fitting logistic regression model
+logitMod <- glm(TARGET_B ~ ., data = newtrain, family=binomial(link="logit"))
+print(logitMod)
+
+# pred using logistic regression
+plr <- predict(logitMod, newtest, type = "response")  
+plr <- as.data.frame(prf)
 
 # metrics
 cm <- confusionMatrix(prf, newtest$TARGET_B)
